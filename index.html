@@ -238,6 +238,16 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
 .custom-cat-add{flex:1;background:var(--terra);border:none;border-radius:14px;padding:13px;font-family:var(--font);font-size:15px;font-weight:700;color:#fff;cursor:pointer}
 
 /* ── CONFIRM DELETE ── */
+.notif-row{display:flex;align-items:center;justify-content:space-between;background:var(--cream2);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+.notif-row-left{display:flex;flex-direction:column;gap:3px}
+.notif-row-title{font-size:15px;font-weight:600;color:var(--ink)}
+.notif-row-sub{font-size:12px;color:var(--ink3)}
+.toggle{position:relative;width:44px;height:26px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#D4B8A8;border-radius:13px;transition:.3s;cursor:pointer}
+.toggle-slider:before{content:"";position:absolute;width:20px;height:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
+.toggle input:checked+.toggle-slider{background:var(--terra)}
+.toggle input:checked+.toggle-slider:before{transform:translateX(18px)}
 .confirm-bg{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px}
 .confirm-bg.open{display:flex}
 .confirm-box{background:var(--cream);border-radius:22px;padding:24px;width:100%;max-width:320px;text-align:center}
@@ -456,6 +466,19 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
     </div>
     <div class="settings-divider"></div>
     <div class="settings-section">
+      <div class="settings-label">Daily reminders</div>
+      <div class="notif-row">
+        <div class="notif-row-left"><div class="notif-row-title">🔥 Morning nudge</div><div class="notif-row-sub">9:00 AM — start the day with intention</div></div>
+        <label class="toggle"><input type="checkbox" id="notifMorning" onchange="toggleNotif()"/><span class="toggle-slider"></span></label>
+      </div>
+      <div class="notif-row">
+        <div class="notif-row-left"><div class="notif-row-title">💸 Evening nudge</div><div class="notif-row-sub">9:00 PM — log before the day ends</div></div>
+        <label class="toggle"><input type="checkbox" id="notifEvening" onchange="toggleNotif()"/><span class="toggle-slider"></span></label>
+      </div>
+      <div id="notifStatus" style="font-size:12px;color:var(--ink3);margin-top:6px;text-align:center;display:none">Notifications enabled ✓</div>
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-section">
       <div class="settings-label">About Spentup</div>
       <div class="habit-info">
         <div class="habit-info-title">🔥 Build the habit</div>
@@ -658,7 +681,68 @@ function submitRec(){
 }
 
 // ── SETTINGS ──
-function openSettings(){document.getElementById('budgetEditInp').value=S.budget;document.getElementById('settingsBg').classList.add('open');}
+
+// ── NOTIFICATIONS ──
+function openSettings(){
+  document.getElementById('budgetEditInp').value=S.budget;
+  const nm=S.notifs||{};
+  document.getElementById('notifMorning').checked=nm.morning||false;
+  document.getElementById('notifEvening').checked=nm.evening||false;
+  updNotifStatus();
+  document.getElementById('settingsBg').classList.add('open');
+}
+
+async function toggleNotif(){
+  const morning=document.getElementById('notifMorning').checked;
+  const evening=document.getElementById('notifEvening').checked;
+  if((morning||evening)&&Notification.permission!=='granted'){
+    const p=await Notification.requestPermission();
+    if(p!=='granted'){
+      document.getElementById('notifMorning').checked=false;
+      document.getElementById('notifEvening').checked=false;
+      showToast('Allow notifications in browser settings');
+      return;
+    }
+  }
+  S.notifs={morning,evening};save();
+  scheduleNotifs();
+  updNotifStatus();
+  if(morning||evening)showToast('Reminders set! 🔥');
+  else showToast('Reminders turned off');
+}
+
+function updNotifStatus(){
+  const el=document.getElementById('notifStatus');
+  const nm=S.notifs||{};
+  el.style.display=(nm.morning||nm.evening)?'block':'none';
+}
+
+function scheduleNotifs(){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  const nm=S.notifs||{};
+  if(window._notifTimers){window._notifTimers.forEach(t=>clearTimeout(t));}
+  window._notifTimers=[];
+  const now=new Date();
+  function msUntil(h){const t=new Date();t.setHours(h,0,0,0);if(t<=now)t.setDate(t.getDate()+1);return t-now;}
+  function scheduleDaily(h,title,body,tag){
+    function fire(){
+      if(Notification.permission==='granted'){
+        new Notification(title,{body,icon:'/icon-192.png',tag,silent:false});
+      }
+      window._notifTimers.push(setTimeout(fire,86400000));
+    }
+    window._notifTimers.push(setTimeout(()=>{
+      if(Notification.permission==='granted'){
+        new Notification(title,{body,icon:'/icon-192.png',tag,silent:false});
+      }
+      fire();
+    },msUntil(h)));
+  }
+  if(nm.morning)scheduleDaily(9,'Spentup 🔥','Good morning! Track your spending today and keep your streak alive.','morning-nudge');
+  if(nm.evening)scheduleDaily(21,'Spentup 💸','How did you spend today? Log your expenses before the day ends.','evening-nudge');
+}
+
+
 function closeSettings(){document.getElementById('settingsBg').classList.remove('open');}
 function saveBudget(){
   const v=parseFloat(document.getElementById('budgetEditInp').value);if(!v||v<100)return;
