@@ -172,13 +172,19 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
 .pop-note::placeholder{color:var(--ink3)}
 .pop-cats{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px 10px}
 .pop-cats::-webkit-scrollbar{display:none}
-.pop-cat{flex-shrink:0;display:flex;align-items:center;gap:5px;background:var(--cream2);border:2px solid transparent;border-radius:20px;padding:7px 12px;font-size:13px;color:var(--ink2);cursor:pointer;font-weight:500;white-space:nowrap;transition:all .14s}
+.pop-cat{position:relative;flex-shrink:0;display:flex;align-items:center;gap:5px;background:var(--cream2);border:2px solid transparent;border-radius:20px;padding:7px 12px;font-size:13px;color:var(--ink2);cursor:pointer;font-weight:500;white-space:nowrap;transition:all .14s}
 .pop-cat:active{transform:scale(.94)}.pop-cat.on{background:#FFE0CC;border-color:var(--terra);color:var(--ink)}
 .pop-cat-ic{font-size:16px}
 /* Date row */
 .pop-date-row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .pop-date-label{font-size:13px;color:var(--ink3);font-weight:500;white-space:nowrap}
 .pop-date-inp{background:var(--cream2);border:none;border-radius:10px;padding:7px 10px;font-size:13px;font-family:var(--font);color:var(--ink);outline:none;font-weight:500;flex:1;-webkit-appearance:none}
+
+.pop-cat.guessed{border-color:var(--terra);background:#FFE0CC;position:relative}
+.guess-badge{position:absolute;top:-7px;left:50%;transform:translateX(-50%);background:var(--terra);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;letter-spacing:.03em}
+.pop-cat{position:relative}
+.pop-guess-label{font-size:11px;color:var(--ink3);margin-bottom:6px;font-weight:500;min-height:16px;transition:opacity .2s}
+
 .pop-add{width:100%;background:var(--terra);color:#fff;border:none;border-radius:16px;padding:16px;font-size:17px;font-weight:700;font-family:var(--font);cursor:pointer;box-shadow:0 4px 16px rgba(100,30,10,.2);letter-spacing:-.01em}
 .pop-add:active{opacity:.88;transform:scale(.98)}
 
@@ -428,7 +434,8 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
   <div class="exp-popup" onclick="event.stopPropagation()">
     <div class="popup-handle"></div>
     <div class="pop-amt-row"><span class="pop-sym">₹</span><input type="number" class="pop-amt" id="eAmt" placeholder="0" inputmode="decimal"/></div>
-    <input class="pop-note" id="eNote" placeholder="What was this for? (optional)"/>
+    <input class="pop-note" id="eNote" placeholder="What was this for? (optional)" oninput="onNoteInput(this.value)"/>
+    <div class="pop-guess-label" id="popGuessLabel"></div>
     <div class="pop-cats" id="popCats"></div>
     <div class="pop-date-row">
       <span class="pop-date-label">📅 Date</span>
@@ -458,7 +465,7 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
 <div class="settings-bg" id="settingsBg" onclick="closeSettings()">
   <div class="settings-sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <div class="settings-title">Settings</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px"><div style="font-family:var(--font-title);font-size:26px;font-style:italic;color:var(--ink)">Settings</div><button onclick="closeSettings()" style="background:var(--cream2);border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;color:var(--ink3);display:flex;align-items:center;justify-content:center">✕</button></div>
     <div class="settings-section">
       <div class="settings-label">Monthly budget</div>
       <div class="budget-edit-row"><span class="budget-edit-sym">₹</span><input type="number" class="budget-edit-inp" id="budgetEditInp" inputmode="numeric" placeholder="6000"/></div>
@@ -632,7 +639,7 @@ function buildPopCats(){
     all.map(c=>`<div class="pop-cat${c.id===selCat?' on':''}" id="pc-${c.id}" onclick="selPC('${c.id}')"><span class="pop-cat-ic">${c.ic}</span>${c.nm}</div>`).join('')+
     `<div class="pop-cat" onclick="openCustomCat('pop')" style="opacity:.6;border-style:dashed;border-color:rgba(196,82,42,.4)">＋ New</div>`;
 }
-function selPC(id){selCat=id;document.querySelectorAll('.pop-cat').forEach(e=>e.classList.remove('on'));const el=document.getElementById('pc-'+id);if(el)el.classList.add('on');}
+function selPC(id){applyGuess(id,'','manual');}
 function buildChips(){const h=new Date().getHours();const m=PREDS.filter(p=>p.h.includes(h)&&(S.cats.includes(p.id)||getAllCats().find(c=>c.id===p.id)));const row=document.getElementById('chipsRow');if(!m.length){row.style.display='none';return;}row.innerHTML=m.map(p=>{const c=gc(p.id);return`<div class="chip" onclick="openExpWith('${p.id}')">${c.ic} ${p.lb}</div>`;}).join('');}
 function buildIG(){document.getElementById('igrid').innerHTML=ICONS.map(ic=>`<div class="igb${ic===selIcon?' on':''}" onclick="sIG('${ic}')">${ic}</div>`).join('');}
 function sIG(ic){selIcon=ic;document.querySelectorAll('.igb').forEach(e=>e.classList.remove('on'));event.target.closest('.igb').classList.add('on');}
@@ -681,6 +688,135 @@ function submitRec(){
 }
 
 // ── SETTINGS ──
+
+
+// ── SMART EXPENSE GUESSING ──
+const KEYWORD_MAP = {
+  // Transport
+  'uber':['auto'],'ola':['auto'],'rapido':['auto'],'auto':['auto'],'cab':['auto'],
+  'rickshaw':['auto'],'metro':['metro'],'bus':['metro'],'train':['metro'],
+  // Food delivery
+  'zomato':['food'],'swiggy':['food'],'food':['food'],'lunch':['food'],
+  'dinner':['food'],'breakfast':['food'],'biryani':['food'],'pizza':['food'],
+  'burger':['food'],'thali':['food'],
+  // Chai & snacks  
+  'chai':['chai'],'tea':['chai'],'coffee':['chai'],'boba':['chai'],
+  'maggi':['snacks'],'chips':['snacks'],'snack':['snacks'],'biscuit':['snacks'],
+  'samosa':['snacks'],'vada':['snacks'],
+  // Canteen
+  'canteen':['canteen'],'mess':['canteen'],'hostel':['canteen'],
+  // OTT & subscriptions
+  'netflix':['movies'],'spotify':['movies'],'prime':['movies'],'hotstar':['movies'],
+  'youtube':['movies'],'ott':['movies'],
+  // Shopping
+  'amazon':['shopping'],'flipkart':['shopping'],'meesho':['shopping'],
+  'clothes':['shopping'],'shirt':['shopping'],'shoes':['shopping'],
+  // Recharge
+  'recharge':['recharge'],'jio':['recharge'],'airtel':['recharge'],'vi':['recharge'],
+  'sim':['recharge'],'data':['recharge'],
+  // Health
+  'medicine':['health'],'medical':['health'],'doctor':['health'],'pharmacy':['health'],
+  'chemist':['health'],'tablet':['health'],
+  // Gym & supplements
+  'gym':['gym'],'protein':['supplements'],'whey':['supplements'],'creatine':['supplements'],
+  // Groceries
+  'grocery':['groceries'],'vegetables':['groceries'],'fruits':['groceries'],
+  'milk':['groceries'],'eggs':['groceries'],'dmart':['groceries'],
+  // Books
+  'book':['books'],'notes':['books'],'stationery':['books'],'pen':['books'],
+  // Laundry
+  'laundry':['laundry'],'washing':['laundry'],'iron':['laundry'],
+  // Party
+  'party':['party'],'movie':['party'],'theatre':['party'],'outing':['party'],
+  'bar':['party'],'club':['party'],
+};
+
+const TIME_GUESS = [
+  {h:[6,7,8,9],id:'auto',reason:'Morning commute time'},
+  {h:[9,10,11],id:'chai',reason:'Morning chai time'},
+  {h:[12,13,14],id:'canteen',reason:'Lunch time'},
+  {h:[15,16],id:'snacks',reason:'Snack time'},
+  {h:[17,18],id:'chai',reason:'Evening chai time'},
+  {h:[18,19,20],id:'auto',reason:'Commute time'},
+  {h:[20,21,22],id:'food',reason:'Dinner time'},
+  {h:[22,23,0,1],id:'party',reason:'Night out?'},
+];
+
+let currentGuessSource = 'time'; // 'time', 'keyword', 'learned', 'manual'
+
+function getTimeGuess(){
+  const h = new Date().getHours();
+  const match = TIME_GUESS.find(p => p.h.includes(h));
+  return match ? {id: match.id, reason: match.reason} : {id: 'food', reason: 'Most common'};
+}
+
+function getKeywordGuess(note){
+  if(!note || note.length < 2) return null;
+  const lower = note.toLowerCase();
+  const words = lower.split(/\s+/);
+  // Check learned patterns first
+  const learned = S.learnedCats || {};
+  for(const word of words){
+    if(learned[word]){
+      return {id: learned[word], reason: 'Based on your history', source: 'learned'};
+    }
+  }
+  // Check built-in keyword map
+  for(const word of words){
+    if(KEYWORD_MAP[word]){
+      return {id: KEYWORD_MAP[word][0], reason: '✦ guessed from note', source: 'keyword'};
+    }
+  }
+  // Partial match
+  for(const [kw, cats] of Object.entries(KEYWORD_MAP)){
+    if(lower.includes(kw)){
+      return {id: cats[0], reason: '✦ guessed from note', source: 'keyword'};
+    }
+  }
+  return null;
+}
+
+function applyGuess(id, reason, source='time'){
+  currentGuessSource = source;
+  selCat = id;
+  document.querySelectorAll('.pop-cat').forEach(e => {
+    e.classList.remove('on','guessed');
+    const badge = e.querySelector('.guess-badge');
+    if(badge) badge.remove();
+  });
+  const el = document.getElementById('pc-' + id);
+  if(el){
+    el.classList.add('on');
+    if(source !== 'manual'){
+      el.classList.add('guessed');
+      const badge = document.createElement('span');
+      badge.className = 'guess-badge';
+      badge.textContent = '✦ guessed';
+      el.appendChild(badge);
+    }
+  }
+  const label = document.getElementById('popGuessLabel');
+  if(label) label.textContent = source !== 'manual' ? reason : '';
+}
+
+function onNoteInput(val){
+  const guess = getKeywordGuess(val);
+  if(guess){
+    applyGuess(guess.id, guess.reason, guess.source);
+  } else if(!val || val.length === 0){
+    // Fall back to time guess
+    const tg = getTimeGuess();
+    applyGuess(tg.id, tg.reason, 'time');
+  }
+}
+
+function learnFromSubmission(note, catId){
+  if(!note || note.length < 2) return;
+  if(!S.learnedCats) S.learnedCats = {};
+  const words = note.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  words.forEach(w => { S.learnedCats[w] = catId; });
+}
+
 
 // ── NOTIFICATIONS ──
 function openSettings(){
