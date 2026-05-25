@@ -6,7 +6,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="theme-color" content="#C4522A"/>
-<link rel="apple-touch-icon" href="/icon-192.png">
 <title>Spentup</title>
 <link rel="manifest" href="/manifest.json">
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js');</script>
@@ -100,6 +99,11 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
 .ecard-name{font-size:15px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ecard-meta{font-size:12px;color:var(--ink3);margin-top:2px}
 .ecard-amt{font-family:var(--font-title);font-size:21px;font-style:italic;color:var(--ink);flex-shrink:0}
+
+.ecard-edit{background:none;border:none;font-size:15px;color:var(--ink3);cursor:pointer;padding:6px 4px;opacity:.3;flex-shrink:0;transition:opacity .2s}
+.ecard-edit:active{opacity:1;color:var(--terra)}
+.pop-title{font-family:var(--font-title);font-size:20px;font-style:italic;color:var(--ink);margin-bottom:12px;text-align:center}
+
 .ecard-del{background:none;border:none;font-size:15px;color:var(--ink3);cursor:pointer;padding:6px 4px;opacity:.3;flex-shrink:0;transition:opacity .2s}
 .ecard-del:active{opacity:1;color:var(--red)}
 .empty{text-align:center;padding:40px 20px;color:rgba(255,255,255,.45)}
@@ -148,6 +152,29 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
 .cbar-track{flex:1;height:6px;background:rgba(0,0,0,.25);border-radius:3px;overflow:hidden}
 .cbar-fill{height:100%;border-radius:3px;transition:width .7s}
 .cbar-val{font-size:12px;color:rgba(255,255,255,.55);width:52px;text-align:right;flex-shrink:0}
+
+.saved-card{background:rgba(80,168,96,.15);border:1px solid rgba(80,168,96,.3);border-radius:16px;padding:14px 16px;margin:0 20px 16px;display:flex;align-items:center;gap:12px}
+.saved-card.hidden{display:none}
+.saved-card-ic{font-size:28px;flex-shrink:0}
+.saved-card-right{flex:1}
+.saved-card-val{font-family:var(--font-title);font-size:28px;font-style:italic;color:#fff;margin-bottom:2px}
+.saved-card-lab{font-size:13px;color:rgba(255,255,255,.65)}
+.saved-card.over{background:rgba(255,59,48,.12);border-color:rgba(255,59,48,.3)}
+
+
+.home-btns-row{display:flex;gap:10px;margin-bottom:10px}
+.add-main-voice{flex:1;background:var(--gold);color:var(--ink);border:none;border-radius:18px;padding:17px;font-family:var(--font);font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,.2);letter-spacing:-.01em}
+.add-main-voice:active{transform:scale(.97);opacity:.9}
+.mic-btn{width:58px;height:58px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.25);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;flex-shrink:0;transition:all .2s}
+.mic-btn:active{transform:scale(.93)}
+.mic-btn.listening{background:var(--red);border-color:var(--red);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.voice-status{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:12px 16px;margin-bottom:12px;display:none;align-items:center;gap:10px}
+.voice-status.show{display:flex}
+.voice-status-ic{font-size:18px;flex-shrink:0}
+.voice-status-txt{font-size:13px;color:rgba(255,255,255,.9);line-height:1.45;flex:1}
+.voice-status-txt strong{display:block;color:#fff;font-weight:600;margin-bottom:2px}
+
 .tip-card{background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:14px 16px;margin:0 20px 16px}
 .tip-label{font-size:11px;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
 .tip-text{font-size:14px;color:rgba(255,255,255,.78);line-height:1.55}
@@ -369,7 +396,14 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
             <span class="streak-txt" id="streakTxt">Start your streak today</span>
           </div>
           <div class="bbar-wrap"><div class="bbar-fill" id="bbar" style="width:0%"></div></div>
-          <button class="add-main" onclick="openExp()"><span class="add-plus">+</span> Log expense</button>
+          <div class="home-btns-row">
+            <button class="add-main-voice" onclick="openExp()"><span class="add-plus">+</span> Log expense</button>
+            <button class="mic-btn" id="micBtn" onclick="startVoice()" aria-label="Voice log">🎤</button>
+          </div>
+          <div class="voice-status" id="voiceStatus">
+            <div class="voice-status-ic" id="voiceStatusIc">🎤</div>
+            <div class="voice-status-txt"><strong id="voiceStatusTitle">Listening...</strong><span id="voiceStatusBody">Speak your expense clearly</span></div>
+          </div>
           <div class="chips-row" id="chipsRow"></div>
         </div>
         <div class="sec-head">Today</div>
@@ -434,6 +468,7 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
 <div class="exp-popup-bg" id="expBg" onclick="closeExp()">
   <div class="exp-popup" onclick="event.stopPropagation()">
     <div class="popup-handle"></div>
+    <div class="pop-title" id="popTitle">Log expense</div>
     <div class="pop-amt-row"><span class="pop-sym">₹</span><input type="number" class="pop-amt" id="eAmt" placeholder="0" inputmode="decimal"/></div>
     <input class="pop-note" id="eNote" placeholder="What was this for? (optional)" oninput="onNoteInput(this.value)"/>
     <div class="pop-guess-label" id="popGuessLabel"></div>
@@ -442,7 +477,7 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
       <span class="pop-date-label">📅 Date</span>
       <input type="date" class="pop-date-inp" id="eDate"/>
     </div>
-    <button class="pop-add" onclick="submitExp()">Log expense</button>
+    <button class="pop-add" id="popAddBtn" onclick="submitExp()">Log expense</button>
   </div>
 </div>
 
@@ -655,15 +690,25 @@ function openExp(cat){
   setTimeout(()=>document.getElementById('eAmt').focus(),150);
 }
 function openExpWith(cat){openExp(cat);}
-function closeExp(){document.getElementById('expBg').classList.remove('open');}
+function closeExp(){document.getElementById('expBg').classList.remove('open');resetPopup();}
 function submitExp(){
   const amt=parseFloat(document.getElementById('eAmt').value);if(!amt||amt<=0)return;
   const note=document.getElementById('eNote').value.trim();
   const date=document.getElementById('eDate').value||today();
-  const now=new Date();
-  S.exps.unshift({id:Date.now(),cat:selCat,amt,note:note||gc(selCat).nm,date,time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})});
-  save();closeExp();render();
-  const isToday=date===today();showToast(gc(selCat).ic+' '+fmt(amt)+(isToday?'':' ('+new Date(date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})+')')+' added');
+  const expNote=note||gc(selCat).nm;
+  if(editingExpId){
+    const idx=S.exps.findIndex(x=>x.id===editingExpId);
+    if(idx>-1){S.exps[idx]={...S.exps[idx],cat:selCat,amt,note:expNote,date};}
+    if(note)learnFromSubmission(note,selCat);
+    save();closeExp();render();showToast('✎ Expense updated');
+  } else {
+    const now=new Date();
+    S.exps.unshift({id:Date.now(),cat:selCat,amt,note:expNote,date,time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})});
+    if(note)learnFromSubmission(note,selCat);
+    save();closeExp();render();
+    const isToday=date===today();
+    showToast(gc(selCat).ic+' '+fmt(amt)+(isToday?'':' ('+new Date(date+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})+')')+' added');
+  }
 }
 
 // ── DELETE ──
@@ -819,6 +864,158 @@ function learnFromSubmission(note, catId){
 }
 
 
+
+
+// ── EDIT EXPENSE ──
+let editingExpId = null;
+
+function openEditExp(id){
+  const e = S.exps.find(x => x.id === id);
+  if(!e) return;
+  editingExpId = id;
+  buildPopCats();
+  document.getElementById('eAmt').value = e.amt;
+  document.getElementById('eNote').value = e.note;
+  document.getElementById('eDate').value = e.date;
+  document.getElementById('popTitle').textContent = 'Edit expense';
+  document.getElementById('popAddBtn').textContent = 'Save changes';
+  applyGuess(e.cat, '', 'manual');
+  document.getElementById('expBg').classList.add('open');
+  setTimeout(() => document.getElementById('eAmt').focus(), 150);
+}
+
+function resetPopup(){
+  editingExpId = null;
+  document.getElementById('popTitle').textContent = 'Log expense';
+  document.getElementById('popAddBtn').textContent = 'Log expense';
+}
+
+
+// ── VOICE LOGGING ──
+let recognition = null;
+let isListening = false;
+
+function startVoice(){
+  if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
+    showToast('Voice not supported in this browser');
+    return;
+  }
+  if(isListening){stopVoice();return;}
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-IN';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('micBtn').classList.add('listening');
+    document.getElementById('micBtn').textContent = '⏹';
+    showVoiceStatus('🎤', 'Listening...', 'Say something like "320 on Starbucks" or "auto 150"');
+  };
+
+  recognition.onresult = (e) => {
+    const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
+    const isFinal = e.results[e.results.length - 1].isFinal;
+    showVoiceStatus('🎤', isFinal ? 'Got it!' : 'Listening...', '"' + transcript + '"');
+    if(isFinal){
+      stopVoice();
+      parseVoiceWithAI(transcript);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    stopVoice();
+    if(e.error === 'not-allowed'){showToast('Microphone permission denied');}
+    else{showToast('Could not hear you, try again');}
+  };
+
+  recognition.onend = () => { if(isListening) stopVoice(); };
+  recognition.start();
+}
+
+function stopVoice(){
+  isListening = false;
+  if(recognition){try{recognition.stop();}catch(e){}}
+  document.getElementById('micBtn').classList.remove('listening');
+  document.getElementById('micBtn').textContent = '🎤';
+}
+
+function showVoiceStatus(ic, title, body){
+  const el = document.getElementById('voiceStatus');
+  el.classList.add('show');
+  document.getElementById('voiceStatusIc').textContent = ic;
+  document.getElementById('voiceStatusTitle').textContent = title;
+  document.getElementById('voiceStatusBody').textContent = body;
+}
+
+function hideVoiceStatus(){
+  document.getElementById('voiceStatus').classList.remove('show');
+}
+
+async function parseVoiceWithAI(transcript){
+  showVoiceStatus('🤖', 'Thinking...', '"' + transcript + '"');
+  const cats = getAllCats().map(c => c.id + ' (' + c.nm + ')').join(', ');
+  const prompt = `You are an expense parser for an Indian college student expense tracking app called Spentup.
+
+Parse this voice input into a JSON expense object: "${transcript}"
+
+Available categories: ${cats}
+
+Rules:
+- amount: extract the number (required)
+- category: pick the best matching category id from the list
+- note: a clean short description of what was spent on
+- Understand Indian context: "chai" = chai, "auto" = auto/cab, "mess" = canteen, "recharge" = recharge
+- Understand Hinglish: "khaana" = food, "safar" = auto, "kitaab" = books
+- If amount is unclear, set amount to 0
+- Always return ONLY valid JSON, no explanation
+
+Example input: "320 on starbucks"
+Example output: {"amount": 320, "category": "chai", "note": "Starbucks"}
+
+Example input: "auto liya 80 rupaye"
+Example output: {"amount": 80, "category": "auto", "note": "Auto ride"}
+
+Now parse: "${transcript}"`;
+
+  try {
+    const response = await fetch('/api/parse-expense', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({transcript, categories: cats})
+    });
+
+    const data = await response.json();
+    const text = data.text || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    if(!parsed.amount || parsed.amount <= 0){
+      showVoiceStatus('❌', 'Could not parse amount', 'Try again: "150 on auto" or "zomato 280"');
+      setTimeout(hideVoiceStatus, 3000);
+      return;
+    }
+
+    hideVoiceStatus();
+    // Pre-fill and open the expense popup
+    openExp(parsed.category || 'food');
+    setTimeout(() => {
+      document.getElementById('eAmt').value = parsed.amount;
+      document.getElementById('eNote').value = parsed.note || '';
+      if(parsed.category) applyGuess(parsed.category, 'voice parsed', 'manual');
+      showToast('🎤 ' + parsed.note + ' · ' + fmt(parsed.amount));
+    }, 300);
+
+  } catch(err) {
+    showVoiceStatus('❌', 'Something went wrong', 'Try typing it instead');
+    setTimeout(hideVoiceStatus, 3000);
+  }
+}
+
+
 // ── NOTIFICATIONS ──
 function openSettings(){
   document.getElementById('budgetEditInp').value=S.budget;
@@ -930,7 +1127,7 @@ function renderHome(){
   // Today's feed
   const te=S.exps.filter(e=>e.date===today());const feed=document.getElementById('feed');
   if(!te.length){feed.innerHTML='<div class="empty"><span class="empty-ic">✦</span><div class="empty-txt">Nothing logged yet today.<br>Tap the button to log your first expense.</div></div>';return;}
-  feed.innerHTML=te.map(e=>{const c=gc(e.cat);return`<div class="ecard"><div class="ecard-ic">${c.ic}</div><div class="ecard-mid"><div class="ecard-name">${e.note}</div><div class="ecard-meta">${c.nm} · ${e.time}</div></div><div class="ecard-amt">${fmt(e.amt)}</div><button class="ecard-del" onclick="askDel(${e.id},'exp')" aria-label="Remove">✕</button></div>`;}).join('');
+  feed.innerHTML=te.map(e=>{const c=gc(e.cat);return`<div class="ecard"><div class="ecard-ic">${c.ic}</div><div class="ecard-mid"><div class="ecard-name">${e.note}</div><div class="ecard-meta">${c.nm} · ${e.time}</div></div><div class="ecard-amt">${fmt(e.amt)}</div><button class="ecard-edit" onclick="openEditExp(${e.id})" aria-label="Edit">✎</button><button class="ecard-del" onclick="askDel(${e.id},'exp')" aria-label="Remove">✕</button></div>`;}).join('');
 }
 
 // ── RENDER RECURRING ──
@@ -957,6 +1154,31 @@ function renderIns(){
   document.getElementById('insAvg').textContent=fmt(Math.round(total/days));
   document.getElementById('insLeft').textContent=period==='month'?fmt(Math.max(0,S.budget-recMo()-total)):'—';
   document.getElementById('insStreak').textContent=streak()+'d';
+  // Saved this month card
+  const savedCard=document.getElementById('savedCard');
+  if(period==='month'){
+    const fixed=recMo();
+    const saved=S.budget-fixed-total;
+    savedCard.classList.remove('hidden');
+    if(saved>0){
+      savedCard.className='saved-card';
+      document.getElementById('savedIc').textContent='🎉';
+      document.getElementById('savedVal').textContent=fmt(Math.round(saved));
+      document.getElementById('savedLab').textContent='saved so far this month — great work!';
+    } else if(saved===0){
+      savedCard.className='saved-card';
+      document.getElementById('savedIc').textContent='😅';
+      document.getElementById('savedVal').textContent='₹0';
+      document.getElementById('savedLab').textContent='right on budget this month';
+    } else {
+      savedCard.className='saved-card over';
+      document.getElementById('savedIc').textContent='🚨';
+      document.getElementById('savedVal').textContent=fmt(Math.abs(Math.round(saved)))+' over';
+      document.getElementById('savedLab').textContent='you\'ve exceeded your budget this month';
+    }
+  } else {
+    savedCard.classList.add('hidden');
+  }
   drawChart(now,period,periodExps);drawCats(periodExps,total);drawTip(periodExps,total);
 }
 function drawChart(now,p,exps){
