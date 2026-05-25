@@ -175,6 +175,17 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
 .voice-status-txt{font-size:13px;color:rgba(255,255,255,.9);line-height:1.45;flex:1}
 .voice-status-txt strong{display:block;color:#fff;font-weight:600;margin-bottom:2px}
 
+
+.day-nav{display:flex;align-items:center;justify-content:space-between;padding:0 20px;margin-bottom:10px}
+.day-nav-btn{background:rgba(255,255,255,.12);border:none;border-radius:12px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;color:#fff;transition:all .15s;flex-shrink:0}
+.day-nav-btn:active{transform:scale(.88);background:rgba(255,255,255,.22)}
+.day-nav-btn:disabled{opacity:.2;cursor:default}
+.day-nav-center{flex:1;text-align:center}
+.day-nav-label{font-size:15px;font-weight:700;color:#fff;display:block}
+.day-nav-date{font-size:12px;color:rgba(255,255,255,.5);margin-top:2px;display:block}
+.feed-wrap{overflow:hidden;position:relative}
+.feed-sliding{transition:transform .22s cubic-bezier(.4,0,.2,1)}
+
 .tip-card{background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:14px 16px;margin:0 20px 16px}
 .tip-label{font-size:11px;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
 .tip-text{font-size:14px;color:rgba(255,255,255,.78);line-height:1.55}
@@ -406,8 +417,17 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
           </div>
           <div class="chips-row" id="chipsRow"></div>
         </div>
-        <div class="sec-head">Today</div>
-        <div class="feed" id="feed"></div>
+        <div class="day-nav">
+          <button class="day-nav-btn" id="dayPrev" onclick="changeDay(-1)">‹</button>
+          <div class="day-nav-center">
+            <span class="day-nav-label" id="dayLabel">Today</span>
+            <span class="day-nav-date" id="dayDate"></span>
+          </div>
+          <button class="day-nav-btn" id="dayNext" onclick="changeDay(1)" disabled>›</button>
+        </div>
+        <div class="feed-wrap" id="feedWrap">
+          <div class="feed" id="feed"></div>
+        </div>
         <div style="height:20px"></div>
       </div>
 
@@ -866,6 +886,101 @@ function learnFromSubmission(note, catId){
 
 
 
+
+// ── DAY NAVIGATION ──
+let viewOffset = 0; // 0 = today, -1 = yesterday, etc.
+
+function getViewDate(offset){
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toLocaleDateString('en-CA');
+}
+
+function getDayLabel(offset){
+  if(offset === 0) return 'Today';
+  if(offset === -1) return 'Yesterday';
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toLocaleDateString('en-IN', {weekday:'long'});
+}
+
+function getDayDate(offset){
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+}
+
+function changeDay(dir){
+  const newOffset = viewOffset + dir;
+  if(newOffset > 0) return; // can't go to future
+  const slideDir = dir > 0 ? '100%' : '-100%';
+  const wrap = document.getElementById('feedWrap');
+  // Slide out
+  wrap.style.transform = 'translateX(' + slideDir + ')';
+  wrap.style.opacity = '0';
+  wrap.style.transition = 'transform .18s ease, opacity .18s ease';
+  setTimeout(() => {
+    viewOffset = newOffset;
+    updateDayNav();
+    renderFeed();
+    // Slide in from opposite side
+    const fromDir = dir > 0 ? '-100%' : '100%';
+    wrap.style.transition = 'none';
+    wrap.style.transform = 'translateX(' + fromDir + ')';
+    wrap.style.opacity = '0';
+    setTimeout(() => {
+      wrap.style.transition = 'transform .18s ease, opacity .18s ease';
+      wrap.style.transform = 'translateX(0)';
+      wrap.style.opacity = '1';
+    }, 20);
+  }, 180);
+}
+
+function updateDayNav(){
+  document.getElementById('dayLabel').textContent = getDayLabel(viewOffset);
+  document.getElementById('dayDate').textContent = getDayDate(viewOffset);
+  document.getElementById('dayNext').disabled = viewOffset >= 0;
+  document.getElementById('dayPrev').disabled = false;
+}
+
+// Swipe gesture support
+let touchStartX = 0;
+let touchStartY = 0;
+
+function initSwipe(){
+  const wrap = document.getElementById('feedWrap');
+  wrap.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, {passive: true});
+  wrap.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50){
+      if(dx < 0) changeDay(-1); // swipe left = go back
+      else if(viewOffset < 0) changeDay(1); // swipe right = go forward
+    }
+  }, {passive: true});
+}
+
+function renderFeed(){
+  const viewDate = getViewDate(viewOffset);
+  const te = S.exps.filter(e => e.date === viewDate);
+  const feed = document.getElementById('feed');
+  if(!te.length){
+    const msg = viewOffset === 0 
+      ? 'Nothing logged yet today.<br>Tap the button to log your first expense.'
+      : 'Nothing logged on this day.';
+    feed.innerHTML = '<div class="empty"><span class="empty-ic">✦</span><div class="empty-txt">' + msg + '</div></div>';
+    return;
+  }
+  feed.innerHTML = te.map(e => {
+    const c = gc(e.cat);
+    return `<div class="ecard"><div class="ecard-ic">${c.ic}</div><div class="ecard-mid"><div class="ecard-name">${e.note}</div><div class="ecard-meta">${c.nm} · ${e.time}</div></div><div class="ecard-amt">${fmt(e.amt)}</div><button class="ecard-edit" onclick="openEditExp(${e.id})" aria-label="Edit">✎</button><button class="ecard-del" onclick="askDel(${e.id},'exp')" aria-label="Remove">✕</button></div>`;
+  }).join('');
+}
+
+
 // ── EDIT EXPENSE ──
 let editingExpId = null;
 
@@ -988,8 +1103,13 @@ Now parse: "${transcript}"`;
       body: JSON.stringify({transcript, categories: cats})
     });
 
+    if(!response.ok){
+      const errData = await response.json().catch(()=>({}));
+      throw new Error(errData.error || 'Server error ' + response.status);
+    }
     const data = await response.json();
     const text = data.text || '';
+    if(data.error) throw new Error(data.error);
     const clean = text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
 
@@ -1010,8 +1130,9 @@ Now parse: "${transcript}"`;
     }, 300);
 
   } catch(err) {
-    showVoiceStatus('❌', 'Something went wrong', 'Try typing it instead');
-    setTimeout(hideVoiceStatus, 3000);
+    showVoiceStatus('❌', 'Something went wrong', err.message || 'Try typing it instead');
+    setTimeout(hideVoiceStatus, 4000);
+    console.error('Voice parse error:', err);
   }
 }
 
