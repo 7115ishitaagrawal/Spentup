@@ -1,87 +1,32 @@
-const CACHE = 'spentup-v3';
-const ASSETS = ['/'];
-
-self.addEventListener('install', e => {
-  self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
-});
-
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', e => {
-  if (e.request.mode === 'navigate') {
-    e.respondWith(fetch(e.request).catch(() => caches.match('/')));
-    return;
-  }
-  e.respondWith(
-    fetch(e.request).then(res => {
-      const clone = res.clone();
-      caches.open(CACHE).then(c => c.put(e.request, clone));
-      return res;
-    }).catch(() => caches.match(e.request))
-  );
-});
-
-// ── NOTIFICATION HANDLER ──
-self.addEventListener('notificationclick', e => {
-  e.notification.close();
-  e.waitUntil(
-    clients.matchAll({type:'window',includeUncontrolled:true}).then(list => {
-      if(list.length > 0) return list[0].focus();
-      return clients.openWindow('/');
-    })
-  );
-});
-
-// ── BACKGROUND SYNC for scheduled notifications ──
-self.addEventListener('periodicsync', e => {
-  if(e.tag === 'daily-nudge') {
-    e.waitUntil(checkAndNotify());
-  }
-});
-
-async function checkAndNotify() {
-  const now = new Date();
-  const h = now.getHours();
-  if(h === 9) {
-    self.registration.showNotification('Spentup 🔥', {
-      body: "Good morning! Don't forget to track your expenses today.",
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      tag: 'morning-nudge',
-      renotify: true,
-      data: { url: '/' }
-    });
-  } else if(h === 21) {
-    self.registration.showNotification('Spentup 💸', {
-      body: "How did you spend today? Log your expenses before the day ends.",
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      tag: 'evening-nudge',
-      renotify: true,
-      data: { url: '/' }
-    });
-  }
+{
+  "name": "Spentup",
+  "short_name": "Spentup",
+  "id": "in.spentup.app",
+  "description": "Know your real spendable money. Built for Indian college students.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#C4522A",
+  "theme_color": "#C4522A",
+  "orientation": "portrait-primary",
+  "lang": "en-IN",
+  "categories": ["finance", "utilities", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }
-
-// Listen for manual trigger from app
-self.addEventListener('message', e => {
-  if(e.data && e.data.type === 'SCHEDULE_NUDGE') {
-    checkAndNotify();
-  }
-  if(e.data && e.data.type === 'TEST_NOTIF') {
-    self.registration.showNotification('Spentup 🔥', {
-      body: e.data.body || "Notifications are working!",
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      tag: 'test',
-      data: { url: '/' }
-    });
-  }
-});
