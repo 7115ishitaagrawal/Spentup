@@ -459,6 +459,13 @@ body{font-family:var(--font);background:var(--terra);color:#fff;position:fixed;i
           <div class="stat-card"><div class="stat-val" id="insLeft">—</div><div class="stat-lab">Left</div></div>
           <div class="stat-card"><div class="stat-val" id="insStreak">0d</div><div class="stat-lab">Streak 🔥</div></div>
         </div>
+        <div class="saved-card hidden" id="savedCard">
+          <div class="saved-card-ic" id="savedIc">🎉</div>
+          <div class="saved-card-right">
+            <div class="saved-card-val" id="savedVal">₹0</div>
+            <div class="saved-card-lab" id="savedLab">saved this month</div>
+          </div>
+        </div>
         <div class="ins-sec">
           <div class="ins-sec-title">
             <span id="chartTitle">Daily spending</span>
@@ -1130,7 +1137,7 @@ Now parse: "${transcript}"`;
     }, 300);
 
   } catch(err) {
-    showVoiceStatus('❌', 'Something went wrong', err.message || 'Try typing it instead');
+    const msg = err.message || 'Try typing it instead'; showVoiceStatus('❌', 'Error', msg);
     setTimeout(hideVoiceStatus, 4000);
     console.error('Voice parse error:', err);
   }
@@ -1277,7 +1284,7 @@ function renderIns(){
   document.getElementById('insStreak').textContent=streak()+'d';
   // Saved this month card
   const savedCard=document.getElementById('savedCard');
-  if(period==='month'){
+  if(period==='month'&&savedCard){
     const fixed=recMo();
     const saved=S.budget-fixed-total;
     savedCard.classList.remove('hidden');
@@ -1297,7 +1304,7 @@ function renderIns(){
       document.getElementById('savedVal').textContent=fmt(Math.abs(Math.round(saved)))+' over';
       document.getElementById('savedLab').textContent='you\'ve exceeded your budget this month';
     }
-  } else {
+  } else if(savedCard) {
     savedCard.classList.add('hidden');
   }
   drawChart(now,period,periodExps);drawCats(periodExps,total);drawTip(periodExps,total);
